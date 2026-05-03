@@ -244,3 +244,76 @@ CREATE TABLE gold.race_qualifying
 );
 GO
 
+---------------------------------10.)-------------------------------------------------
+IF OBJECT_ID(N'gold.race_results_detail', N'U') IS NOT NULL
+    DROP TABLE gold.race_results_detail;
+GO
+ 
+CREATE TABLE gold.race_results_detail (
+    resultId                INT             NOT NULL,
+    raceId                  INT             NOT NULL,
+    season                  INT             NOT NULL,
+    round                   INT             NOT NULL,
+    raceName                NVARCHAR(200)   NOT NULL,
+    raceDate                DATE            NULL,
+    circuitName             NVARCHAR(200)   NULL,
+    circuitCountry          NVARCHAR(100)   NULL,
+    driverId                INT             NOT NULL,
+    driverCode              NVARCHAR(10)    NULL,
+    driverName              NVARCHAR(200)   NOT NULL,
+    driverNationality       NVARCHAR(100)   NULL,
+    permanentNumber         NVARCHAR(10)    NULL,
+    constructorId           INT             NOT NULL,
+    constructorName         NVARCHAR(200)   NOT NULL,
+    gridPosition            INT             NULL,
+    finishPosition          INT             NULL,
+    positionText            NVARCHAR(10)    NULL,   
+    positionOrder           INT             NULL,
+    points                  FLOAT           NULL,
+    lapsCompleted           INT             NULL,
+    raceTimeMs              BIGINT          NULL,
+    raceTimeFormatted       NVARCHAR(30)    NULL,   
+    gapToLeaderMs           BIGINT          NULL,   
+    fastestLapNumber        INT             NULL,
+    fastestLapTime          NVARCHAR(15)    NULL,
+    fastestLapSpeed         FLOAT           NULL,
+    isFastestLap            BIT             NOT NULL DEFAULT 0,  
+    isDNF                   BIT             NOT NULL DEFAULT 0,
+    statusId                INT             NULL,
+    statusDescription       NVARCHAR(100)   NULL,   
+    CONSTRAINT PK_gold_race_results_detail PRIMARY KEY (resultId)
+);
+GO
+CREATE NONCLUSTERED INDEX IX_rrd_raceId   ON gold.race_results_detail (raceId);
+CREATE NONCLUSTERED INDEX IX_rrd_driverId ON gold.race_results_detail (driverId, season);
+
+
+-----------------------11.)----------------------------------------------------------
+
+IF OBJECT_ID(N'gold.head_to_head_stats', N'U') IS NOT NULL
+    DROP TABLE gold.head_to_head_stats;
+GO
+ 
+CREATE TABLE gold.head_to_head_stats (
+    driverAId               INT             NOT NULL,
+    driverAName             NVARCHAR(200)   NOT NULL,
+    driverBId               INT             NOT NULL,
+    driverBName             NVARCHAR(200)   NOT NULL,
+    constructorId           INT             NOT NULL,
+    constructorName         NVARCHAR(200)   NOT NULL,
+    season                  INT             NOT NULL,
+    racesCompared           INT             NOT NULL DEFAULT 0,
+    driverAFinishedAheadCount   INT         NOT NULL DEFAULT 0,
+    driverBFinishedAheadCount   INT         NOT NULL DEFAULT 0,
+    qualiRacesCompared          INT         NOT NULL DEFAULT 0,
+    driverAQualiAheadCount      INT         NOT NULL DEFAULT 0,
+    driverBQualiAheadCount      INT         NOT NULL DEFAULT 0,
+    driverATeamPoints       FLOAT           NOT NULL DEFAULT 0,
+    driverBTeamPoints       FLOAT           NOT NULL DEFAULT 0,
+    CONSTRAINT PK_gold_h2h PRIMARY KEY (driverAId, driverBId, constructorId, season),
+    CONSTRAINT CK_gold_h2h_order CHECK (driverAId < driverBId)
+);
+GO
+
+
+
