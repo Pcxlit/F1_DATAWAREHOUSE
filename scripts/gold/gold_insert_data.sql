@@ -522,6 +522,140 @@ LEFT JOIN bronze.results  AS res  ON res.raceId      = q.raceId
                                  AND res.driverId     = q.driverId;
 GO
 
+--------------------------------10------------------------------------------
+
+INSERT INTO gold.race_results_detail
+(
+    resultId, raceId, season, round, raceName, raceDate,
+    circuitName, circuitCountry,
+    driverId, driverCode, driverName, driverNationality, permanentNumber,
+    constructorId, constructorName,
+    gridPosition, finishPosition, positionText, positionOrder,
+    points, lapsCompleted, raceTimeMs, raceTimeFormatted, gapToLeaderMs,
+    fastestLapNumber, fastestLapTime, fastestLapSpeed,
+    isFastestLap, isDNF, statusId, statusDescription
+)
+SELECT
+    r.result_Id,
+    r.race_Id,
+    ra.season_year,
+    race.round,
+    race.name                                               AS raceName,
+    ra.race_date,
+    ci.circuit_name,
+    ci.country                                              AS circuitCountry,
+    d.driver_id,
+    d.code                                                  AS driverCode,
+    d.full_name                                             AS driverName,
+    d.nationality                                           AS driverNationality,
+    d.number                                                AS permanentNumber,
+    c.constructor_id,
+    c.constructor_name,
+    r.grid_position,
+    r.finish_position,
+    CAST(res_raw.positionText AS NVARCHAR(10))              AS positionText,
+    r.position_order,
+    r.points,
+    r.laps_completed,
+    r.race_time_ms,
+    NULLIF(res_raw.time, N'\\N')                            AS raceTimeFormatted,
+    CASE
+        WHEN r.finish_position = 1 THEN NULL
+        WHEN r.race_time_ms IS NULL THEN NULL
+        ELSE r.race_time_ms - winner_ms.race_time_ms
+    END                                                     AS gapToLeaderMs,
+    r.fastest_lap_number,
+    r.fastest_lap_time,
+    r.fastest_lap_speed,
+    CASE WHEN CAST(res_raw.[rank] AS NVARCHAR(5)) = N'1' THEN 1 ELSE 0 END
+                                                            AS isFastestLap,
+    r.is_dnf                                                AS isDNF,
+    r.status_id,
+    st.status                                               AS statusDescription
+FROM silver.fct_race_results       r
+JOIN bronze.results                res_raw ON res_raw.resultId    = r.result_id
+JOIN silver.dim_races              ra      ON ra.race_id           = r.race_id
+JOIN bronze.races                  race    ON race.raceId          = r.race_id
+JOIN silver.dim_circuits           ci      ON ci.circuit_id        = ra.circuit_id
+JOIN silver.dim_drivers            d       ON d.driver_id          = r.driver_id
+JOIN silver.dim_constructors       c       ON c.constructor_id     = r.constructor_id
+LEFT JOIN bronze.status            st      ON st.statusId          = r.status_id
+LEFT JOIN (
+    SELECT DISTINCT race_id, race_time_ms
+    FROM   silver.fct_race_results
+    WHERE  finish_position = 1
+) winner_ms ON winner_ms.race_id = r.race_id;
+GO
+----------------------------------------------11---------------------------------
+WITH teammate_comparison AS (
+    
+    SELECT 
+        r_main.season_year,
+        rA.constructor_id,
+        rA.driver_id AS driverAId,
+        rB.driver_id AS driverBId,
+        CASE WHEN rA.is_dnf = 0 AND rB.is_dnf = 0 THEN 1 ELSE 0 END AS race_valid,
+        CASE WHEN rA.is_dnf = 0 AND rB.is_dnf = 0 AND rA.finish_position < rB.finish_position THEN 1 ELSE 0 END AS a_race_win,
+        CASE WHEN rA.is_dnf = 0 AND rB.is_dnf = 0 AND rB.finish_position < rA.finish_position THEN 1 ELSE 0 END AS b_race_win,
+        CASE WHEN qA.qualify_position IS NOT NULL AND qB.qualify_position IS NOT NULL THEN 1 ELSE 0 END AS quali_valid,
+        CASE WHEN qA.qualify_position < qB.qualify_position THEN 1 ELSE 0 END AS a_quali_win,
+        CASE WHEN qB.qualify_position < qA.qualify_position THEN 1 ELSE 0 END AS b_quali_win
+    FROM silver.fct_race_results rA
+    JOIN silver.fct_race_results rB ON rA.race_id = rB.race_id 
+                                   AND rA.constructor_id = rB.constructor_id 
+                                   AND rA.driver_id < rB.driver_id
+    JOIN silver.dim_races r_main ON rA.race_id = r_main.race_id
+    LEFT JOIN silver.fct_qualifying qA ON rA.race_id = qA.race_id AND rA.driver_id = qA.driver_id
+    LEFT JOIN silver.fct_qualifying qB ON rB.race_id = qB.race_id AND rB.driver_id = qB.driver_id
+),
+points_summary AS (
+    SELECT 
+        r_pts.season_year,
+        r.constructor_id, 
+        r.driver_id, 
+        SUM(r.points) as total_points
+    FROM silver.fct_race_results r
+    JOIN silver.dim_races r_pts ON r.race_id = r_pts.race_id
+    GROUP BY r_pts.season_year, r.constructor_id, r.driver_id
+)
+INSERT INTO gold.head_to_head_stats 
+(
+    driverAId, driverAName, driverBId, driverBName,
+    constructorId, constructorName, season,
+    racesCompared, driverAFinishedAheadCount, driverBFinishedAheadCount,
+    qualiRacesCompared, driverAQualiAheadCount, driverBQualiAheadCount,
+    driverATeamPoints, driverBTeamPoints
+)
+SELECT 
+    tc.driverAId, dA.full_name,
+    tc.driverBId, dB.full_name,
+    tc.constructor_id, con.constructor_name,
+    tc.season_year,
+    SUM(tc.race_valid)   AS racesCompared,
+    SUM(tc.a_race_win)   AS driverAFinishedAheadCount,
+    SUM(tc.b_race_win)   AS driverBFinishedAheadCount,
+    SUM(tc.quali_valid)  AS qualiRacesCompared,
+    SUM(tc.a_quali_win)  AS driverAQualiAheadCount,
+    SUM(tc.b_quali_win)  AS driverBQualiAheadCount,
+    ISNULL(pA.total_points, 0),
+    ISNULL(pB.total_points, 0)
+FROM teammate_comparison tc
+JOIN silver.dim_drivers dA ON tc.driverAId = dA.driver_id
+JOIN silver.dim_drivers dB ON tc.driverBId = dB.driver_id
+JOIN silver.dim_constructors con ON tc.constructor_id = con.constructor_id
+LEFT JOIN points_summary pA ON tc.driverAId = pA.driver_id 
+                           AND tc.season_year = pA.season_year 
+                           AND tc.constructor_id = pA.constructor_id
+LEFT JOIN points_summary pB ON tc.driverBId = pB.driver_id 
+                           AND tc.season_year = pB.season_year 
+                           AND tc.constructor_id = pB.constructor_id
+GROUP BY 
+    tc.driverAId, dA.full_name, tc.driverBId, dB.full_name, 
+    tc.constructor_id, con.constructor_name, tc.season_year, 
+    pA.total_points, pB.total_points;
+
+
+
 
 
 
