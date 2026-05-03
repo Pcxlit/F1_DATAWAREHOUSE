@@ -1,3 +1,10 @@
+/*Script Purpose:
+    This script creates tables in the 'bronze' schema, dropping existing tables 
+    if they already exist.
+	  Run this script to define the DDL structure of 'bronze' Tables
+===============================================================================*/
+
+
 DROP TABLE IF EXISTS bronze.circuits;
 CREATE TABLE bronze.circuits (
     circuitId       NVARCHAR(500),
