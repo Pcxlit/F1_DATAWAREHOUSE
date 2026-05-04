@@ -1,0 +1,14 @@
+ALTER TABLE bronze.results               ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.races                 ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.drivers               ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.constructors           ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.lap_times             ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.pit_stops             ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.brz_qualifying        ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.brz_sprint_results    ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.circuits              ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.constructor_results   ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.constructor_standings ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.status                ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.driver_standings      ADD ingested_at DATETIME2 NULL;
+ALTER TABLE bronze.seasons               ADD ingested_at DATETIME2 NULL;
